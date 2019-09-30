@@ -1,0 +1,271 @@
+;; Hazardous Assembler Copyright (c) 2019 informedcitizenry
+
+;; Permission is hereby granted, free of charge, to any person obtaining a copy
+;; of this software and associated documentation files (the "Software"), to deal
+;; in the Software without restriction, including without limitation the rights
+;; to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+;; copies of the Software, and to permit persons to whom the Software is
+;; furnished to do so, subject to the following conditions:
+
+;; The above copyright notice and this permission notice shall be included in all
+;; copies or substantial portions of the Software.
+
+;; THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+;; IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+;; FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+;; AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+;; LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+;; OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+;; SOFTWARE.
+
+            .INCLUDE "c64lib.a65"
+
+EOF         = 0
+MODE        .BLOCK
+
+            LABEL       = 0
+            INSTRUCTION = 1
+            OPERAND     = 2
+
+            .ENDBLOCK
+
+            .BASICSTUB    CBM.SOB,START
+
+LINE_PTR    = $19   ; POINTER TO START OF LINE
+CURSOR      = $1B   ; POINTER TO THE CURRENTLY EVALUATED CHAR IN THE LINE
+EVAL_PTR    = $1C   ; POINTER TO THE FIRST CHARACTER IN CURRENT EVALUATION
+MNEM_IX     = $1E   ; INDEX TO THE CURRENT CHAR OF CURRENT MNEMONIC
+OBJECT_PTR  = $20   ; POINTER TO THE CURRENT BYTE OF OBJECT CODE
+MNEM_NO     = $22   ; INDEX OF THE CURRENT MNEMONIC
+PASSES      = $23   ; NO. OF PASSES
+PC          = $C1   ; PROGRAM COUNTER
+ERRORS      = $FC   ; ERRORS FOUND
+SYMBOL_IX   = $FD   ; CURRENT SYMBOL IN SYMBOL TABLE
+
+
+START       LDA #<SOURCE
+            STA LINE_PTR
+            STA CURSOR
+            STA EVAL_PTR
+            STA OBJECT_PTR
+            STA MNEM_IX     ; SINCE PAGE ALIGNED .A := 0
+            STA SYMBOL_IX
+            STA PASSES
+            STA ERRORS
+            STA PC
+            STA PC+1
+            TAY
+            LDA #>SOURCE
+            STA LINE_PTR+1
+            STA CURSOR+1
+            STA EVAL_PTR+1
+            LDA #>OBJECT
+            STA OBJECT_PTR+1
+
+ASSEMBLE    .BLOCK
+
+            JSR ASMLINE
+            RTS
+
+            .ENDBLOCK
+
+ASMLINE    .BLOCK
+
+            JSR ISEOL
+            BNE +
+            JMP DONE
++           BCC +
+            JMP NEXTLINE
++           JSR GETCHAR
+            CPX #' '
+            BEQ NOTLABEL
+
+            ;; WE ARE AT FIRST CHAR IN LINE
+            ;; ONLY VALID CHARS ARE ':',' ','A'-'Z'
+            CMP #'A'
+            BCC SYMERROR
+            CMP #'Z'+1
+            BCS SYMERROR
+            JSR ISMNEMONIC
+            BCS PARSEINSTR
+            LDA SYMBOL_IX
+            ASL
+            ASL
+            ASL
+            ASL               ; .A * 16 SIZEOF(SYMBOL_TBL)
+            TAX
+SYMLOOP     LDA (CURSOR),Y
+            CMP #'0'
+            BCC ADV_SYMBOLIX
+            CMP #'9'+1
+            BCS +
+            CMP #'Z'+1
+            BCS ADV_SYMBOLIX
++           CMP #'A'
+            BCC ADV_SYMBOLIX
+            STA SYMBOL_TBL,X
+            INY
+            CPY #16
+            BCS SYMERROR
+            INX
+            JMP SYMLOOP
+SYMERROR    LDA #0
+            JMP SETERROR
+
+ADV_SYMBOLIX
+
+            CMP #' '
+            BEQ +
+            CMP #'\r'
+            BEQ +
+            CMP #';'
+            BEQ +
+            CMP #':'
+            BNE SYMERROR
++           LDA #0
+            STA SYMBOL_TBL,X
+            LDA SYMBOL_IX
+            ASL
+            ASL                 ; .A * 4 SIZEOF(SYMBOL_VAL)
+            TAX
+            LDA PC
+            STA SYMBOL_VALS,X
+            LDA PC+1
+            STA SYMBOL_VALS+1,X
+            LDA #0
+            STA SYMBOL_VALS+2,X
+            STA SYMBOL_VALS+3,X
+            INC SYMBOL_IX
+            INY
+NOTLABEL    JSR ISEOL
+            BEQ DONE
+            BCS NEXTLINE
+            JSR GETCHAR
+            CMP #'A'
+            BCC INSTRERROR
+            CMP #'Z'+1
+            BCS INSTRERROR
+            JSR ISMNEMONIC
+            BCS PARSEINSTR
+INSTRERROR  LDA #1
+            JMP SETERROR
+PARSEINSTR  RTS
+
+NEXTLINE    INY
+            TYA
+            CLC
+            ADC CURSOR
+            STA CURSOR
+            LDA #0
+            TAY
+            ADC CURSOR+1
+            STA CURSOR+1
+            JMP ASMLINE
+
+DONE        RTS
+
+            .ENDBLOCK
+
+ISEOL       .BLOCK
+
+            LDA (CURSOR),Y
+            PHA
+            BEQ DONE
+            CMP #'\r'
+            BEQ YES
+            CMP #';'
+            BEQ ISCOMMENT
+            CMP #':'
+            BNE NO
+YES         SEC
+DONE        PLA
+            RTS
+NO          CLC
+            PLA
+            RTS
+ISCOMMENT   INY
+            LDA (CURSOR),Y
+            BEQ DONE
+            CMP #'\r'
+            BEQ YES
+            BNE ISCOMMENT
+
+            .ENDBLOCK
+
+ISMNEMONIC  .BLOCK
+
+            TYA                 ; SAVE .Y
+            PHA
+            LDX #0              ; INIT .X
+            STX MNEM_IX         ; AND MNEM_IX
+            STX MNEM_NO         ; AND MNEM_NO
+LOOP        LDA MNEMONICS,X     ; GET CURRENT MNEMONIC CHAR
+            BPL +               ; IS IT FINAL CHAR?, NO SKIP
+            AND #%01111111      ; ELSE RESET HIGH BIT
+            BEQ NO              ; ARE WE AT THE LAST CHAR?, THEN WE ARE DONE
+            CMP (CURSOR),Y      ; FINAL COMPARE
+            BEQ YES             ; SINCE AT FINAL COMPARISON IF EQUAL THEN DONE
+            BNE NEXT1           ; ELSE INCREMENT
++           CMP (CURSOR),Y      ; NON-FINAL COMPARE
+            BCC NEXT            ; CURRENT MNEMONIC LESS THAN CURSOR
+            BNE NO              ; CURRENT MNEMONIC IS != (GREATER THAN) CURSOR
+                                ; SO WE ARE DONE
+            INX                 ; ELSE GET NEXT CHAR
+            INY
+            JMP LOOP
+NEXT        LDX MNEM_IX         ; INCREMENT MNEM
+            INX
+            INX
+NEXT1       INX
+            STX MNEM_IX
+            INC MNEM_NO
+            PLA
+            TAY
+            PHA
+            JMP LOOP
+NO          PLA
+            CLC
+            RTS
+YES         PLA
+            SEC
+            RTS
+
+
+            .ENDBLOCK
+
+GETCHAR     .BLOCK
+
+            LDA (CURSOR),Y
+            TAX
+LOOP        CMP #' '
+            BNE DONE
+            INY
+            LDA (CURSOR),Y
+            BNE LOOP
+DONE        RTS
+
+            .ENDBLOCK
+
+SETERROR    RTS
+
+MNEMONICS   .NSTRING "ADC","AND","ASL","BCC","BCS","BEQ","BIT","BMI","BNE","BPL"
+            .NSTRING "BRK","BVC","BVS","CLC","CLD","CLI","CLV","CMP","CPX","CPY"
+            .NSTRING "DEC","DEX","DEY","EOR","INC","INX","INY","JMP","JSR","LDA"
+            .NSTRING "LDX","LDY","LSR","NOP","ORA","PHA","PHP","PLA","PLP","ROL"
+            .NSTRING "ROR","RTI","RTS","SBC","SEC","SED","SEI","STA","STX","STY"
+            .NSTRING "TAX","TAY","TSX","TXA","TXS","TYA"
+            .NSTRING "ASC","BYT","DWD","EQU","FIL","ORG","WRD"
+            .BYTE $80
+
+            .ALIGN 256
+SYMBOL_TBL  .FILL 256*16,0
+SYMBOL_VALS .FILL 256*4,0
+
+            .ALIGN 256
+
+SOURCE      .STRING "\rHELLO  LDA #$80\r"
+            .BYTE EOF
+
+            * = $C000
+
+OBJECT      .BYTE ?

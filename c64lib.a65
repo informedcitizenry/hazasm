@@ -1,0 +1,479 @@
+;; Hazardous Assembler Copyright (c) 2019 informedcitizenry
+
+;; Permission is hereby granted, free of charge, to any person obtaining a copy
+;; of this software and associated documentation files (the "Software"), to deal
+;; in the Software without restriction, including without limitation the rights
+;; to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+;; copies of the Software, and to permit persons to whom the Software is
+;; furnished to do so, subject to the following conditions:
+
+;; The above copyright notice and this permission notice shall be included in all
+;; copies or substantial portions of the Software.
+
+;; THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+;; IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+;; FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+;; AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+;; LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+;; OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+;; SOFTWARE.
+
+CBM         .block
+
+R6510               =   $01                 ;Processor port used for ROM/RAM hiding
+FREETOP             =   $33                 ;Pointer to bottom of string text storage
+MEMSIZE             =   $37                 ;Pointer to highest address used by BASIC
+FAC1                =   $61                 ;Floating point accumulator #1
+FACHO               =   $62                 ;Floating point accumulator #1: mantissa
+STATUS              =   $90                 ;Kernal I/O status word
+FNLEN               =   $b7                 ;Length of current filename
+FA                  =   $ba                 ;Current device number
+FNADDR              =   $bb                 ;Pointer: current filename
+RVS                 =   $c7                 ;Flag to print reverse characters
+SFDX                =   $cb                 ;Flag: print shifted characters
+PNTR                =   $d3                 ;Cursor column on current line
+HIBASE              =   $0288               ;Top page of screen memory
+CINV                =   $0314               ;Vector: interrupt
+CBINV               =   $0316               ;Vector: brk instruction interrupt
+NMINV               =   $0318               ;Vector: non-maskable interrupt
+SOB                 =   $0801               ;Start of BASIC
+BASICV              =   $a002               ;BASIC warm start vector
+STROUT              =   $ab1e               ;Print null-terminated string to screen
+STRVAL              =   $b7b5               ;Convert ASCII to floating point in FAC1
+QINT                =   $bc9b               ;Convert FAC1 to 32-bit integer in FAC1
+LINPRT              =   $bdcd               ;Output binary value as decimal string
+SPRITE0_X           =   $d000               ;Sprite #0 x-coordinate
+SPRITE0_Y           =   $d001               ;Sprite #0 y-coordinate
+SPRITE1_X           =   $d002               ;Sprite #1 x-coordinate
+SPRITE1_Y           =   $d003               ;Sprite #1 y-coordinate
+SPRITE2_X           =   $d004               ;Sprite #2 x-coordinate
+SPRITE2_Y           =   $d005               ;Sprite #2 y-coordinate
+SPRITE3_X           =   $d006               ;Sprite #3 x-coordinate
+SPRITE3_Y           =   $d007               ;Sprite #3 y-coordinate
+SPRITE4_X           =   $d008               ;Sprite #4 x-coordinate
+SPRITE4_Y           =   $d009               ;Sprite #4 y-coordinate
+SPRITE5_X           =   $d00a               ;Sprite #5 x-coordinate
+SPRITE5_Y           =   $d00b               ;Sprite #5 y-coordinate
+SPRITE6_X           =   $d00c               ;Sprite #6 x-coordinate
+SPRITE6_Y           =   $d00d               ;Sprite #6 y-coordinate
+SPRITE7_X           =   $d00e               ;Sprite #7 x-coordinate
+SPRITE7_Y           =   $d00f               ;Sprite #7 y-coordinate
+SCROLY              =   $d011               ;Vertical fine scrolling and control register
+RASTER              =   $d012               ;Current raster scan line
+SPENA               =   $d015               ;Sprite enable register
+VMCSB               =   $d018               ;VIC-II chip memory control register
+VICIRQ              =   $d019               ;VIC Interrupt Flag Register
+IRQMASK             =   $d01a               ;IRQ mask register
+SPBGPR              =   $d01b               ;Sprite to foreground display priority register
+SPMC                =   $d01c               ;Sprite Multicolor Registers
+EXTCOL              =   $d020               ;Border color register
+BGCOL0              =   $d021               ;Background color 0
+SPRITE_COLOR2       =   $d025               ;Sprite extra color #1
+SPRITE_COLOR3       =   $d026               ;Sprite extra color #2
+SPRITE0_COLOR       =   $d027               ;Sprite #0 color
+SPRITE1_COLOR       =   SPRITE0_COLOR+1     ;Sprite #1 color
+SPRITE2_COLOR       =   SPRITE1_COLOR+1     ;Sprite #2 color
+SPRITE3_COLOR       =   SPRITE2_COLOR+1     ;Sprite #3 color
+SPRITE4_COLOR       =   SPRITE3_COLOR+1     ;Sprite #4 color
+SPRITE5_COLOR       =   SPRITE4_COLOR+1     ;Sprite #5 color
+SPRITE6_COLOR       =   SPRITE5_COLOR+1     ;Sprite #6 color
+SPRITE7_COLOR       =   SPRITE6_COLOR+1     ;Sprite #7 color
+VOICE1_FREQ         =   54272               ;Voice #1 frequency
+VOICE1_DURATION     =   54274               ;Voice #1 pulse width
+VOICE1_CTRL_REG     =   54276               ;Voice #1 control register
+VOICE1_ATT_DEC      =   54277               ;Voice #1 attack and decay length
+VOICE1_SUS_REL      =   54278               ;Voice #1 sustain volume and release length
+VOICE2_FREQ         =   54279               ;Voice #2 frequency
+VOICE2_DURATION     =   54281               ;Voice #2 pulse width
+VOICE2_CTRL_REG     =   54283               ;Voice #2 control register
+VOICE2_ATT_DEC      =   54284               ;Voice #2 attack and decay length
+VOICE2_SUS_REL      =   54285               ;Voice #2 sustain volume and release length
+VOICE3_FREQ         =   54286               ;Voice #3 frequency
+VOICE3_DURATION     =   54288               ;Voice #3 pulse width
+VOICE3_CTRL_REG     =   54290               ;Voice #3 control register
+VOICE3_ATT_DEC      =   54291               ;Voice #3 attack and decay length
+VOICE3_SUS_REL      =   54292               ;Voice #3 sustain volume and release length
+SID_CUTOFF_FREQ     =   54293               ;Filter cut off frequency
+SID_FILTER_CTRL     =   54295               ;Filter control
+SID_VOLUME          =   54296               ;Volume and filter modes
+VOIC3_WAV_RO        =   54299               ;Voice #3 waveform output
+VOICE3_ADSR_RO      =   54300               ;Voice #3 adsr output
+COLOR_RAM           =   $d800               ;Color ram
+CIAPRA              =   $dc00               ;Data port register a
+CIAPRB              =   $dc01               ;Data port b
+CIDDRA              =   $dc02               ;Data direction register a
+CIDDRB              =   $dc03               ;Data direction register b
+TIMALO              =   $dc04               ;Timer a low byte
+TIMAHI              =   $dc05               ;Timer a high byte
+TIMBLO              =   $dc06               ;Timer b low byte
+TIMBHI              =   $dc07               ;Timer b high byte
+TODTEN              =   $dc08               ;Time of day clock tenths of seconds
+TODSEC              =   $dc09               ;Time of day clock seconds
+TODMIN              =   $dc0a               ;Time of day clock minutes
+TODHRS              =   $dc0b               ;Time of day clock hours
+CIASDR              =   $dc0c               ;Serial data port
+CIAICR              =   $dc0d               ;Interrupt control register
+CIACRA              =   $dc0e               ;Control register a
+CIACRB              =   $dc0f               ;Control register b
+CI2PRA              =   $dd00               ;CIA-2 data port register a
+CI2PRB              =   $dd01               ;CIA-2 data port b
+C2DDRA              =   $dd02               ;CIA-2 data direction register a
+C2DDRB              =   $dd03               ;CIA-2 data direction register b
+TI2ALO              =   $dd04               ;CIA-2 timer a low byte
+TI2AHI              =   $dd05               ;CIA-2 timer a high byte
+TI2BLO              =   $dd06               ;CIA-2 timer b low byte
+TI2BHI              =   $dd07               ;CIA-2 timer b high byte
+TO2TEN              =   $dd08               ;CIA-2 time of day clock tenths of seconds
+TO2SEC              =   $dd09               ;CIA-2 time of day clock seconds
+TO2MIN              =   $dd0a               ;CIA-2 time of day clock minutes
+TO2HRS              =   $dd0b               ;CIA-2 time of day clock hours
+CI2SDR              =   $dd0c               ;CIA-2 serial data port
+CI2ICR              =   $dd0d               ;CIA-2 interrupt control register
+CI2CRA              =   $dd0e               ;CIA-2 control register a
+CI2CRB              =   $dd0f               ;CIA-2 control register b
+CLRSCR              =   $e544               ;Clear screen
+IRQ                 =   $ea31               ;Kernal IRQ entry
+SCNKEY_REAL         =   $ea87               ;Query keyboard
+NMI                 =   $fe47               ;Kernal NMI entry
+SETMSG              =   $ff90               ;Set system messages
+SCNKEY              =   $ff9f               ;Query keyboard
+SETLFS              =   $ffba               ;Set logical, first & second addresses
+SETNAM              =   $ffbd               ;Set length & address of filename
+OPEN                =   $ffc0               ;Open a logical file
+CLOSE               =   $ffc3               ;Close a logical file
+CHKIN               =   $ffc6               ;Open channel for input
+CHKOUT              =   $ffc9               ;Open channel for output
+CLRCHN              =   $ffcc               ;Clear all channels & restore default i/o
+CHRIN               =   $ffcf               ;Get byte from current input device
+CHROUT              =   $ffd2               ;Output a byte to current output device
+LOAD                =   $ffd5               ;Load logical file to memory
+SAVE                =   $ffd8               ;Save logical file from memory
+STOP                =   $ffe1               ;Check run/stop key pressed
+GETIN               =   $ffe4               ;Read byte from default input device
+                    ;; Colors
+BLACK               =   0
+WHITE               =   1
+RED                 =   2
+CYAN                =   3
+PINK                =   4
+GREEN               =   5
+BLUE                =   6
+YELLOW              =   7
+ORANGE              =   8
+BROWN               =   9
+PEACH               =   10
+DARK_GREY           =   11
+GREY                =   12
+LIGHT_GREEN         =   13
+LIGHT_BLUE          =   14
+LIGHT_GREY          =   15
+                    ;; Waveforms
+NOISE               =   129
+SQUARE              =   65
+SAWTOOTH            =   33
+TRIANGLE            =   17
+
+            .endblock
+
+restax      .macro
+            pla
+            tax
+            pla
+            .endmacro
+
+restay      .macro
+            pla
+            tay
+            pla
+            .endmacro
+
+restxy      .macro
+            pla
+            tay
+            pla
+            tax
+            .endmacro
+
+restaxy     .macro
+            pla
+            tay
+            pla
+            tax
+            pla
+            .endmacro
+
+saveax      .macro
+            pha
+            txa
+            pha
+            .endmacro
+
+saveay      .macro
+            pha
+            tya
+            pha
+            .endmacro
+
+saveaxy     .macro
+            pha
+            txa
+            pha
+            tya
+            pha
+            .endmacro
+
+savexy      .macro
+            txa
+            pha
+            tya
+            pha
+            .endmacro
+
+;;Macros for common 16-bit operations
+
+adcabs16    .macro first,second,third
+            lda \first
+            adc \second
+            sta \third
+            lda \first+1
+            adc \second+1
+            sta \third+1
+            .endmacro
+
+adcabs24    .macro first,second,third
+            lda \first
+            adc \second
+            sta \third
+            lda \first+1
+            adc \second+1
+            sta \third+1
+            lda \first+2
+            adc \second+2
+            sta \third+2
+            .endmacro
+
+adcimm16    .macro first,second,third
+            lda \first
+            adc #<\second
+            sta \third
+            lda \first+1
+            adc #>\second
+            sta \third+1
+            .endmacro
+
+aslmem16    .macro
+
+            asl \1
+            rol \1+1
+
+            .endmacro
+
+
+cmpabs16    .macro
+            lda \1+1
+            cmp \2+1
+            bne done
+            lda \1
+            cmp \2
+done        .endmacro
+
+cmpgabs16    .macro first,second,greaddr
+            .cmplabs16 \second,\first,\greaddr
+            .endmacro
+
+cmpgeabs16  .macro first,second,greddr
+            sec
+            lda \first
+            sbc \second
+            lda \first+1
+            sbc \second+1
+            bcs \greddr
+            .endmacro
+
+cmplabs16   .macro first,second,lessaddr
+            sec
+            lda \first
+            sbc \second
+            lda \first+1
+            sbc \second+1
+            bcc \lessaddr
+            .endmacro
+
+cmpleabs16  .macro first,second,lessequaladdr
+            .cmpgeabs16 \second,\first,\lessequaladdr
+            .endmacro
+
+cmpimm16    .macro
+            lda \1+1
+            cmp #>\2
+            bne done
+            lda \1
+            cmp #<\2
+done        .endmacro
+
+cpxabs16    .macro
+            ldx \1+1
+            cpx \2+1
+            bne done
+            ldx \1
+            cpx \2
+done        .endmacro
+
+cpxleabs16  .macro first,second,lessequaladdr
+            .cpxgeabs16 \second,\first,\lessequaladdr
+            .endmacro
+
+cpxgeabs16  .macro first,second,greddr
+            ldx \first+1
+            cpx \second+1
+            bne +
+            ldx \first
+            cpx \second
++            bcs \greddr
+
+            .endmacro
+
+cpximm16    .macro
+            ldx \1+1
+            cpx #>\2
+            bne done
+            ldx \1
+            cpx #<\2
+done        .endmacro
+
+cpyabs16    .macro
+            ldy \1+1
+            cpy \2+1
+            bne done
+            ldy \1
+            cpy \2
+done        .endmacro
+
+cpyleabs16  .macro first,second,lessequaladdr
+            .cpygeabs16 \second,\first,\lessequaladdr
+            .endmacro
+
+cpygeabs16  .macro first,second,greddr
+
+            ldy \first+1
+            cpy \second+1
+            bne +
+            ldy \first
+            cpy \second
++           bcs \greddr
+
+            .endmacro
+
+cpyimm16    .macro
+            ldy \1+1
+            cpy #>\2
+            bne done
+            ldy \1
+            cpy #<\2
+done        .endmacro
+
+
+ldaabs16    .macro
+            lda \2
+            sta \1
+            lda \2+1
+            sta \1+1
+            .endmacro
+
+ldaimm16    .macro
+            lda #<\2
+            sta \1
+            lda #>\2
+            sta \1+1
+            .endmacro
+
+ldxabsx16   .macro
+            ldx \2
+            stx \1
+            ldx \2+1
+            stx \1+1
+            .endmacro
+
+ldximmx16   .macro
+            ldx #<\2
+            stx \1
+            ldx #>\2
+            stx \1+1
+            .endmacro
+
+ldyabsy16   .macro
+            ldy \2
+            sty \1
+            ldy \2+1
+            sty \1+1
+            .endmacro
+
+ldyimmy16   .macro
+            ldy #<\2
+            sty \1
+            ldy #>\2
+            sty \1+1
+            .endmacro
+
+lsrmem16    .macro
+
+            lsr \1+1
+            ror    \1
+
+            .endmacro
+
+dec16       .macro
+            lda \1
+            bne skip
+            dec \1+1
+skip        dec \1
+            .endmacro
+
+inc16        .macro
+            inc    \1
+            bne done
+            inc \1+1
+done        = *
+            .endmacro
+
+sbcabs16    .macro first,second,third
+            lda \first
+            sbc \second
+            sta \third
+            lda \first+1
+            sbc \second+1
+            sta \third+1
+            .endmacro
+
+sbcimm16    .macro first,second,third
+            lda \first
+            sbc #<\second
+            sta \third
+            lda \first+1
+            sbc #>\second
+            sta \third+1
+            .endmacro
+
+spriteline  .macro v
+            .byte \v >> 16, (\v >> 8) & 255, \v & 255
+            .endmacro
+
+basicstub    .macro sob=2049,start=2061
+            * = \sob
+            .word eob,10        ;Create a basic loader
+            .byte $9e           ;10 SYS{parameter}
+            .cstring format("{0}", \start)
+eob         .word 0
+            .endmacro
+
+rasterirq   .macro line=0
+            sei
+            lda #%01111111      ;Switch off CIA timer irqs
+            sta CBM.CIAICR
+            and CBM.SCROLY      ;Clear most significant bit
+            sta CBM.SCROLY      ;In VIC raster register
+            lda #\line
+            sta CBM.RASTER      ;<line> will trigger line
+            lda #%00000001      ;Enable raster interrupt signal
+            sta CBM.IRQMASK
+            .endmacro
